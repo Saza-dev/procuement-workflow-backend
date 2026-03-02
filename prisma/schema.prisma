@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum Role {
+  DH  // Dept Head
+  PE  // Procurement Exec
+  FM  // Finance Manager
+  OM  // Ops Manager
+  CEO // CEO
+  HR  // HR
+}
+
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVALS
+  REJECTED_REVISION_REQUIRED
+  APPROVED
+  PURCHASED
+  FINANCE_RECHECK_REQUIRED
+  HANDED_OVER
+  DONE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ItemCondition {
+  GOOD
+  DAMAGED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  role      Role
+  password      String
+  
+  // Relations
+  requests        RequestHeader[]  @relation("Requester")
+  approvals       Approval[]
+  auditLogs       AuditLog[]
+}
+
+
+
+model RequestHeader {
+  id              Int            @id @default(autoincrement())
+  title           String
+  justification   String?
+  attachmentUrl   String?
+  
+  // Workflow State
+  status          RequestStatus  @default(DRAFT)
+  version         Int            @default(1)
+  isUrgent        Boolean        @default(false)
+  
+  // Sourcing & Finance
+  totalValue Decimal?
+  invoiceNumber    String?
+  
+  // Relations
+  requesterId     Int
+  requester       User           @relation("Requester", fields: [requesterId], references: [id])
+  items           RequestItem[]
+  approvals       Approval[]
+  snapshots       RequestSnapshot[]
+  auditLogs       AuditLog[]
+  
+
+  parentRequestId Int?
+  parentRequest   RequestHeader?   @relation("SplitHistory", fields: [parentRequestId], references: [id])
+  childRequests   RequestHeader[]  @relation("SplitHistory")
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model RequestItem {
+  id              Int            @id @default(autoincrement())
+  description     String
+  quantity        Int
+  targetDate      DateTime
+  
+  actualPrice     Decimal?
+  quoteUrl        String?
+  
+  assetId         String?
+  condition       ItemCondition?
+  
+  requestId       Int
+  request         RequestHeader  @relation(fields: [requestId], references: [id])
+}
+
+model Approval {
+  id              Int            @id @default(autoincrement())
+  requestId       Int
+  request         RequestHeader  @relation(fields: [requestId], references: [id])
+  
+  approverId      Int
+  approver        User           @relation(fields: [approverId], references: [id])
+  role            Role
+  
+  version         Int
+  status          ApprovalStatus @default(PENDING)
+  comment         String?
+  
+  updatedAt       DateTime       @updatedAt
+}
+
+model RequestSnapshot {
+  id              Int            @id @default(autoincrement())
+  requestId       Int
+  request         RequestHeader  @relation(fields: [requestId], references: [id])
+  version         Int
+  data            Json
+  createdAt       DateTime       @default(now())
+}
+
+model AuditLog {
+  id              Int      @id @default(autoincrement())
+  requestId       Int
+  request         RequestHeader @relation(fields: [requestId], references: [id])
+  actorId         Int
+  actor           User     @relation(fields: [actorId], references: [id])
+  
+  action          String
+  details         String?
+  timestamp       DateTime @default(now())
+}
