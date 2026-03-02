@@ -20,7 +20,7 @@ import { authorize } from "../middleware/RBACMiddleware.js";
 const router = Router();
 
 // Configure basic multer for PDF uploads
-const upload = multer({ dest: "uploads/quotes/" });
+// const upload = multer({ dest: "uploads/quotes/" });
 
 // View Incoming
 router.get(

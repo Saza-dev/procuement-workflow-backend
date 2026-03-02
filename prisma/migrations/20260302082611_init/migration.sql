@@ -15,18 +15,9 @@ CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "role" "Role" NOT NULL,
-    "name" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Vendor" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "contact" TEXT,
-
-    CONSTRAINT "Vendor_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -38,8 +29,7 @@ CREATE TABLE "RequestHeader" (
     "status" "RequestStatus" NOT NULL DEFAULT 'DRAFT',
     "version" INTEGER NOT NULL DEFAULT 1,
     "isUrgent" BOOLEAN NOT NULL DEFAULT false,
-    "totalEstValue" DECIMAL(65,30),
-    "totalActualValue" DECIMAL(65,30),
+    "totalValue" DECIMAL(65,30),
     "invoiceNumber" TEXT,
     "requesterId" INTEGER NOT NULL,
     "parentRequestId" INTEGER,
@@ -55,10 +45,7 @@ CREATE TABLE "RequestItem" (
     "description" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
     "targetDate" TIMESTAMP(3) NOT NULL,
-    "estPrice" DECIMAL(65,30) NOT NULL,
     "actualPrice" DECIMAL(65,30),
-    "variance" DECIMAL(65,30),
-    "vendorId" INTEGER,
     "quoteUrl" TEXT,
     "assetId" TEXT,
     "condition" "ItemCondition",
@@ -112,9 +99,6 @@ ALTER TABLE "RequestHeader" ADD CONSTRAINT "RequestHeader_requesterId_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "RequestHeader" ADD CONSTRAINT "RequestHeader_parentRequestId_fkey" FOREIGN KEY ("parentRequestId") REFERENCES "RequestHeader"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RequestItem" ADD CONSTRAINT "RequestItem_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RequestItem" ADD CONSTRAINT "RequestItem_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "RequestHeader"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
