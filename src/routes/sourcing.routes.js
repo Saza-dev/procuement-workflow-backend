@@ -13,6 +13,7 @@ import {
   uploadQuote,
   splitRequest,
   dispatchToApprovers,
+  finalizePurchase
 } from "../controllers/sourcing.controller.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { authorize } from "../middleware/RBACMiddleware.js";
@@ -20,7 +21,8 @@ import { authorize } from "../middleware/RBACMiddleware.js";
 const router = Router();
 
 // Configure basic multer for PDF uploads
-// const upload = multer({ dest: "uploads/quotes/" });
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // View Incoming
 router.get(
@@ -41,13 +43,22 @@ router.patch(
 );
 
 // Upload PDF Quote
-// router.post(
-//   "/:id/items/:itemId/quotes",
-//   authMiddleware,
-//   authorize("PE , ADMIN"),
-//   upload.single("quoteFile"),
-//   uploadQuote,
-// );
+router.post(
+  "/:id/items/:itemId/quotes",
+  authMiddleware,
+  authorize("PE", "ADMIN"),
+  upload.single("quoteFile"),
+  uploadQuote,
+);
+
+// purchase route
+router.post(
+  "/:id/purchase",
+  authMiddleware,
+  authorize("PE", "ADMIN"),
+  upload.single("quoteFile"), // This processes the file from the frontend
+  finalizePurchase // We will create this controller function next
+);
 
 // The Split Option
 router.post(

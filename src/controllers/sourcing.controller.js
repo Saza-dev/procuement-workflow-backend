@@ -1,4 +1,5 @@
 import { prisma } from "../config/db.js";
+import { supabase } from "../config/supabaseClient.js";
 
 // --- 1. View Incoming Requests ---
 export const getIncomingRequests = async (req, res) => {
@@ -6,7 +7,7 @@ export const getIncomingRequests = async (req, res) => {
     const { status } = req.query;
     const requests = await prisma.requestHeader.findMany({
       where: { status },
-      include: { items: true, requester: {}, approvals:true },
+      include: { items: true, requester: {}, approvals: true },
     });
     return res.json(requests);
   } catch (error) {
@@ -38,23 +39,109 @@ export const uploadQuote = async (req, res) => {
   try {
     const { itemId } = req.params;
 
-    // In a real app, req.file is populated by Multer or a cloud storage middleware (AWS S3/Cloudinary)
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // Mocking the file URL that your storage service would return
-    const quoteUrl = `/uploads/quotes/${req.file.filename}`;
+    // 1. Create a unique filename
+    const fileExt = req.file.originalname.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `quotes/${fileName}`;
+
+    // 2. Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(process.env.SUPABASE_BUCKET)
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from(process.env.SUPABASE_BUCKET)
+      .getPublicUrl(filePath);
 
     const updatedItem = await prisma.requestItem.update({
       where: { id: Number(itemId) },
-      data: { quoteUrl },
+      data: { quoteUrl: publicUrl },
     });
 
     return res.json({
-      message: "Quote uploaded successfully",
+      message: "Quote uploaded to Supabase successfully",
       item: updatedItem,
     });
   } catch (error) {
-    return res.status(500).json({ error: "Failed to upload quote" });
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Failed to upload quote to cloud storage" });
+  }
+};
+
+// sourcing.controller.js
+
+export const finalizePurchase = async (req, res) => {
+  try {
+    const requestId = Number(req.params.id);
+    const { invoiceNumber, finalTotalCost, actorId } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ error: "Invoice file is required." });
+    }
+
+    // 1. Upload Invoice to Supabase
+    const fileExt = req.file.originalname.split(".").pop();
+    const fileName = `invoice-${requestId}-${Date.now()}.${fileExt}`;
+    const filePath = `invoices/${fileName}`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(process.env.SUPABASE_BUCKET)
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from(process.env.SUPABASE_BUCKET)
+      .getPublicUrl(filePath);
+
+    // 2. Update Database via Transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the Request Header with final details
+      const updatedRequest = await tx.requestHeader.update({
+        where: { id: requestId },
+        data: {
+          status: "PURCHASED",
+          invoiceNumber: invoiceNumber,
+          totalValue: Number(finalTotalCost), // Update to the final actual cost
+          attachmentUrl: publicUrl, // Storing the final invoice URL here
+        },
+      });
+
+      // Log the purchase in Audit Logs
+      await tx.auditLog.create({
+        data: {
+          requestId,
+          actorId: Number(actorId),
+          action: "PURCHASE_FINALIZED",
+          details: `Invoice ${invoiceNumber} recorded. Total: $${finalTotalCost}`,
+        },
+      });
+
+      return updatedRequest;
+    });
+
+    return res.json({
+      message: "Purchase finalized and moved to inventory.",
+      request: result,
+    });
+  } catch (error) {
+    console.error("Purchase Finalization Error:", error);
+    return res.status(500).json({ error: "Failed to finalize purchase" });
   }
 };
 
