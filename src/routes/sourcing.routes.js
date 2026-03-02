@@ -41,13 +41,13 @@ router.patch(
 );
 
 // Upload PDF Quote
-router.post(
-  "/:id/items/:itemId/quotes",
-  authMiddleware,
-  authorize("PE , ADMIN"),
-  upload.single("quoteFile"),
-  uploadQuote,
-);
+// router.post(
+//   "/:id/items/:itemId/quotes",
+//   authMiddleware,
+//   authorize("PE , ADMIN"),
+//   upload.single("quoteFile"),
+//   uploadQuote,
+// );
 
 // The Split Option
 router.post(
